@@ -1,38 +1,459 @@
-<!DOCTYPE html>
-<html lang="zh-HK">
+<!doctype html>
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>我的第一個 PWA</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>點名考勤系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- 讓 iOS 支援全畫面 -->
+  <!-- PWA 必要設定 -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="點名考勤">
+  <meta name="theme-color" content="#f3f4f6">
 
-  <!-- 連結 manifest -->
+  <!-- iOS 主畫面圖標（建議放同目錄） -->
+  <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
+
+  <!-- 一般圖標 -->
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
+  <!-- Manifest -->
   <link rel="manifest" href="manifest.json">
-
-  <!-- 圖示 -->
-  <link rel="apple-touch-icon" href="icon.png">
 
   <style>
     body {
-      font-family: -apple-system, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #f0f8ff;
-      color: #333;
-      text-align: center;
+      -webkit-tap-highlight-color: transparent;
     }
-    h1 { color: #007AFF; }
-    .app { margin-top: 50px; }
+    @media (display-mode: standalone) {
+      body {
+        background-color: #f3f4f6;
+      }
+    }
   </style>
 </head>
-<body>
-  <div class="app">
-    <h1>🎉 恭喜！</h1>
-    <p>這是你的 PWA App！</p>
-    <p>加入主畫面後就會全畫面開啟喔～</p>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+  <div class="max-w-3xl mx-auto p-4">
+    <header class="mb-4 text-center">
+      <h1 class="text-3xl font-bold">點名考勤系統</h1>
+      <p class="text-sm text-gray-500 mt-1">Google Sheet + Form 整合版</p>
+    </header>
+    <nav class="mb-4 flex gap-2 justify-center">
+      <button id="tab-attend" class="tab-btn px-4 py-2 rounded shadow bg-blue-500 text-white text-base hover:bg-blue-600">點名</button>
+      <button id="tab-view" class="tab-btn px-4 py-2 rounded shadow bg-gray-300 text-gray-800 text-base hover:bg-gray-400">查看考勤</button>
+    </nav>
+    <!-- 點名頁 -->
+    <section id="panel-attend">
+      <h2 class="text-xl font-semibold mb-3">1. 點名</h2>
+      <div id="cards" class="grid grid-cols-1 gap-4"></div>
+    </section>
+    <!-- 查看頁 -->
+    <section id="panel-view" class="hidden">
+      <h2 class="text-xl font-semibold mb-3">2. 查看考勤</h2>
+      <div class="flex flex-col sm:flex-row gap-2 mb-3">
+        <select id="view-course" class="p-2 border rounded w-full"></select>
+        <select id="view-year" class="p-2 border rounded w-full"></select>
+        <select id="view-month" class="p-2 border rounded w-full"></select>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-2 items-center">
+        <span id="loading-status" class="text-gray-500 text-sm">請選擇課程...</span>
+        <button id="btn-copy" class="ml-auto px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded text-base">複製 WhatsApp 格式</button>
+      </div>
+      <div class="mb-2">
+        <h3 class="font-semibold">WhatsApp 友好格式：</h3>
+        <textarea id="whatsapp-output" class="w-full mt-1 p-2 border rounded h-60 text-sm md:text-base" readonly></textarea>
+      </div>
+      <div id="view-table-container" class="mt-2 bg-white rounded shadow p-2 overflow-auto max-h-[40vh]">
+        <table id="view-table" class="min-w-full text-sm md:text-base"></table>
+      </div>
+    </section>
   </div>
+
+  <!-- Modal -->
+  <div id="modal" class="fixed inset-0 hidden items-center justify-center bg-black/50 p-2">
+    <div id="modal-content" class="bg-white rounded-lg shadow-lg w-full max-w-md p-4 overflow-auto">
+      <div class="flex justify-between items-start mb-2">
+        <div>
+          <h3 id="modal-title" class="text-lg font-semibold"></h3>
+          <p id="modal-sub" class="text-sm text-gray-500"></p>
+        </div>
+        <button id="modal-close" class="px-2 py-1 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded text-base">X</button>
+      </div>
+      <div class="mt-2">
+        <label class="block text-sm font-medium">選擇日期</label>
+        <select id="modal-date" class="mt-1 p-2 border rounded w-full text-base"></select>
+      </div>
+      <div class="mt-2">
+        <label class="block text-sm font-medium">選擇教練（可多選）</label>
+        <div id="modal-coaches" class="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+      </div>
+      <div class="mt-3 flex gap-2 justify-end">
+        <button id="modal-submit" class="px-4 py-2 bg-green-500 text-white rounded text-base hover:bg-green-600">送出點名</button>
+        <button id="modal-cancel" class="px-4 py-2 bg-red-500 text-white rounded text-base hover:bg-red-600">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-4 right-4 hidden bg-green-500 text-white px-4 py-2 rounded shadow-lg">已送出並更新資料</div>
+  <iframe name="hidden_iframe" style="display:none;"></iframe>
+
+  <script>
+  (function(){
+    const SHEET_ID='1Rzb2I-0wPNjWOqTKMwx1Z6gVMMVtu2D3ekWwAHvJZUg';
+    const CLASS_INFO_SHEET='Class info';
+    const SHEET1_GID='103185592';
+    const FORM_ID='1FAIpQLSdTYHzLfQKVxhWpAzfuf8I9amdT_vDoNs843tBD35OnlGc53A';
+    const FORM_ENTRIES={date:'entry.176770776',course:'entry.1115358630',time:'entry.1251335978',coach:'entry.1253762114'};
+    const cardsEl=document.getElementById('cards');
+    const modalEl=document.getElementById('modal');
+    const modalTitle=document.getElementById('modal-title');
+    const modalDate=document.getElementById('modal-date');
+    const modalCoaches=document.getElementById('modal-coaches');
+    const modalSubmit=document.getElementById('modal-submit');
+    const modalClose=document.getElementById('modal-close');
+    const modalCancel=document.getElementById('modal-cancel');
+    const tabAttend=document.getElementById('tab-attend');
+    const tabView=document.getElementById('tab-view');
+    const panelAttend=document.getElementById('panel-attend');
+    const panelView=document.getElementById('panel-view');
+    const viewCourse=document.getElementById('view-course');
+    const viewYear=document.getElementById('view-year');
+    const viewMonth=document.getElementById('view-month');
+    const btnCopy=document.getElementById('btn-copy');
+    const viewTable=document.getElementById('view-table');
+    const loadingStatus=document.getElementById('loading-status');
+    const whatsappOutput=document.getElementById('whatsapp-output');
+    const toast=document.getElementById('toast');
+    let classInfoRows=[], sheet1Rows=[], selectedCourse='', selectedTime='';
+
+    // tab 切換
+    tabAttend.onclick=()=>showAttend();
+    tabView.onclick=()=>showView();
+    function showAttend(){
+      panelAttend.classList.remove('hidden');
+      panelView.classList.add('hidden');
+      tabAttend.classList.add('bg-blue-500','text-white');
+      tabAttend.classList.remove('bg-gray-300','hover:bg-gray-400');
+      tabView.classList.remove('bg-blue-500','text-white','hover:bg-gray-400');
+      tabView.classList.add('bg-gray-300','text-gray-800','hover:bg-gray-400');
+    }
+    function showView(){
+      panelView.classList.remove('hidden');
+      panelAttend.classList.add('hidden');
+      tabView.classList.add('bg-blue-500','text-white');
+      tabView.classList.remove('bg-gray-300','hover:bg-gray-400');
+      tabAttend.classList.remove('bg-blue-500','text-white');
+      tabAttend.classList.add('bg-gray-300','text-gray-800','hover:bg-gray-400');
+    }
+
+    function gvizFetch(idOrSheet){
+      const url=/^[0-9]+$/.test(idOrSheet)
+        ? `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?gid=${idOrSheet}&t=${Date.now()}`
+        : `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(idOrSheet)}&t=${Date.now()}`;
+      return fetch(url)
+        .then(r => {
+          if (!r.ok) throw new Error('無法載入 Google Sheets 資料');
+          return r.text();
+        })
+        .then(t => {
+          const json = t.replace(/^[^\(]*\(/, '').replace(/\);?$/, '');
+          const obj = JSON.parse(json);
+          return obj.table.rows.map(r => r.c.map(c => c ? (c.f || c.v || '') : ''));
+        })
+        .catch(err => {
+          toast.className = 'fixed bottom-4 right-4 bg-red-600 text-white px-4 py-2 rounded shadow-lg';
+          toast.textContent = `錯誤：${err.message}`;
+          toast.classList.remove('hidden');
+          setTimeout(() => toast.classList.add('hidden'), 3000);
+          return [];
+        });
+    }
+
+    // 支援 yyyy/m/d 和 yyyy/mm/dd
+    function parseDateFlexible(s){
+      if(!s) return null;
+      const match = s.toString().match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+      if(match){
+        const [, year, month, day] = match;
+        return new Date(Number(year), Number(month)-1, Number(day));
+      }
+      return null;
+    }
+
+    function formatDateToYYYYMMDD(date) {
+      if (!(date instanceof Date) || isNaN(date)) return '';
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}/${month}/${day}`;
+    }
+
+    function getNextClassDate(course, time) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = formatDateToYYYYMMDD(today);
+      const dates = [...new Set(classInfoRows
+        .filter(r => r.course === course && r.time === time)
+        .flatMap(r => r.date.split(/[,，]/).map(x => x.trim())))
+      ].filter(Boolean);
+      let closest = dates.includes(todayStr) ? todayStr : null;
+      if (!closest) {
+        let minDiff = Infinity;
+        dates.forEach(d => {
+          const dt = parseDateFlexible(d);
+          if (dt && dt >= today) {
+            const diff = dt - today;
+            if (diff < minDiff) {
+              minDiff = diff;
+              closest = d;
+            }
+          }
+        });
+      }
+      if (!closest) return '';
+      const dt = parseDateFlexible(closest);
+      if (!dt) return '';
+      const year = dt.getFullYear();
+      const month = String(dt.getMonth() + 1).padStart(2, '0');
+      const day = String(dt.getDate()).padStart(2, '0');
+      return `${year}年${month}月${day}日`;
+    }
+
+    Promise.all([gvizFetch(CLASS_INFO_SHEET), gvizFetch(SHEET1_GID)]).then(([cRows, sRows]) => {
+      classInfoRows = cRows.slice(1).map(r => ({
+        course: r[0] || '',
+        time: r[1] || '',
+        date: r[2] || '',
+        coach: r[3] || ''
+      }));
+
+      sheet1Rows = sRows.slice(1).map(r => ({
+        course: r[1] || '',
+        time: r[2] || '',
+        date: r[3] || '',
+        coach: r[4] || ''
+      }));
+
+      renderCards();
+      populateSelectors();
+      autoLoad();
+    });
+
+    function renderCards(){
+      const seen=new Set(); cardsEl.innerHTML='';
+      classInfoRows.forEach(r=>{
+        const key=r.course+'@@'+r.time;
+        if(!seen.has(key)){
+          seen.add(key);
+          const nextClassDate = getNextClassDate(r.course, r.time);
+          const div=document.createElement('div');
+          div.className='bg-white rounded shadow p-4 relative transition hover:shadow-md';
+          div.innerHTML=`
+            <div class="cursor-pointer">
+              <div class="text-lg font-semibold">${r.course}</div>
+              <div class="text-sm text-gray-500 mt-1">${r.time}</div>
+              <div class="text-sm text-gray-600 mt-1">${nextClassDate ? '下堂上課日期 ' + nextClassDate : ''}</div>
+            </div>
+            <button class="absolute bottom-2 right-2 text-sm px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded">查看考勤</button>
+          `;
+          div.querySelector('div').addEventListener('click',()=>openModal(r.course,r.time));
+          div.querySelector('button').addEventListener('click',e=>{
+            e.stopPropagation();
+            showView();
+            viewCourse.value=r.course;
+            selectedCourse=r.course;
+            selectedTime=r.time;
+            autoLoad();
+          });
+          cardsEl.appendChild(div);
+        }
+      });
+    }
+
+    function openModal(course,time){
+      selectedCourse=course; selectedTime=time;
+      modalTitle.textContent=course;
+      document.getElementById('modal-sub').textContent=time;
+      const dates=[...new Set(classInfoRows.filter(r=>r.course===course&&r.time===time)
+        .flatMap(r=>r.date.split(/[,，]/).map(x=>x.trim())))].filter(Boolean);
+      const coaches=[...new Set(classInfoRows.filter(r=>r.course===course&&r.time===time)
+        .flatMap(r=>r.coach.split(/[,，]/).map(x=>x.trim())))].filter(Boolean);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = formatDateToYYYYMMDD(today);
+      let closest = dates.includes(todayStr) ? todayStr : null;
+      if (!closest) {
+        let minDiff = Infinity;
+        dates.forEach(d => {
+          const dt = parseDateFlexible(d);
+          if (dt && dt >= today) {
+            const diff = dt - today;
+            if (diff < minDiff) {
+              minDiff = diff;
+              closest = d;
+            }
+          }
+        });
+      }
+      modalDate.innerHTML = dates.map(d =>
+        `<option value="${d}" ${d === closest ? 'selected' : ''}>${d}</option>`
+      ).join('');
+      modalCoaches.innerHTML=coaches.map(c=>`<label class="flex items-center gap-2 p-2 border rounded"><input type="checkbox" value="${c}" class="coach-check"><span>${c}</span></label>`).join('');
+      modalEl.classList.remove('hidden');
+      modalEl.style.display='flex';
+    }
+
+    modalClose.onclick=modalCancel.onclick=()=>closeModal();
+    modalEl.addEventListener('click',e=>{if(e.target===modalEl)closeModal();});
+    function closeModal(){modalEl.classList.add('hidden'); modalEl.style.display='none';}
+
+    modalSubmit.onclick=()=>submitForm(selectedCourse,selectedTime);
+
+    function submitForm(course,time){
+      const date = modalDate.value.trim();
+      const coaches = Array.from(document.querySelectorAll('.coach-check:checked')).map(c => c.value);
+      if (!date || !coaches.length) {
+        alert('請選擇日期與教練');
+        return;
+      }
+      const form=document.createElement('form');
+      form.action=`https://docs.google.com/forms/d/e/${FORM_ID}/formResponse`;
+      form.method='POST'; form.target='hidden_iframe';
+      const add=(n,v)=>{const i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;form.appendChild(i);};
+      add(FORM_ENTRIES.date, date);
+      add(FORM_ENTRIES.course, course);
+      add(FORM_ENTRIES.time, time);
+      coaches.forEach(c => add(FORM_ENTRIES.coach, c));
+      document.body.appendChild(form);
+      form.submit();
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2500);
+      closeModal();
+      setTimeout(() => refreshSheet1(), 2000);
+    }
+
+    function refreshSheet1(){
+      gvizFetch(SHEET1_GID).then(rows=>{
+        sheet1Rows=rows.slice(1).map(r=>({
+          course: r[1]||'', time: r[2]||'', date: r[3]||'', coach: r[4]||''
+        }));
+        autoLoad();
+      });
+    }
+
+    function populateSelectors(){
+      const courses=[...new Set(sheet1Rows.map(r=>r.course))].filter(Boolean).sort();
+      viewCourse.innerHTML='<option value="">--選課程--</option>'+courses.map(c=>`<option>${c}</option>`).join('');
+
+      const currentYear = new Date().getFullYear();
+      const startYear = 2025;
+      const years = [];
+      for(let y = startYear; y <= currentYear + 1; y++) {
+        years.push(y);
+      }
+      viewYear.innerHTML = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
+
+      viewMonth.innerHTML=Array.from({length:12},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
+      viewMonth.value = new Date().getMonth() + 1;
+
+      [viewCourse,viewYear,viewMonth].forEach(sel=>sel.addEventListener('change',autoLoad));
+    }
+
+    function autoLoad(){
+      const c=viewCourse.value, y=+viewYear.value, m=+viewMonth.value;
+      if(!c || !y || !m) {
+        loadingStatus.textContent='請選擇課程、年份、月份';
+        viewTable.innerHTML=''; 
+        whatsappOutput.value=''; 
+        return;
+      }
+      loadingStatus.textContent='載入中...';
+
+      const classInfo = classInfoRows.find(r => r.course === c);
+      const time = classInfo ? classInfo.time : '';
+
+      const scheduledDates = [...new Set(classInfoRows
+        .filter(r => r.course === c)
+        .flatMap(r => r.date.split(/[,，]/).map(x => x.trim())))
+      ].filter(Boolean)
+       .map(d => parseDateFlexible(d))
+       .filter(dt => dt && dt.getFullYear() === y && dt.getMonth() + 1 === m)
+       .sort((a,b) => a - b)
+       .map(dt => {
+         const year = dt.getFullYear();
+         const month = dt.getMonth() + 1;
+         const day = dt.getDate();
+         return `${year}/${month}/${day}`;
+       });
+
+      if(scheduledDates.length === 0){
+        loadingStatus.textContent='該月份無預定上課日期';
+        viewTable.innerHTML=''; whatsappOutput.value=''; return;
+      }
+
+      const attendanceMap = {};
+      sheet1Rows
+        .filter(r => r.course === c)
+        .forEach(r => {
+          const dt = parseDateFlexible(r.date);
+          if(dt && dt.getFullYear() === y && dt.getMonth() + 1 === m){
+            const dateStr = r.date.trim();
+            if(!attendanceMap[dateStr]) attendanceMap[dateStr] = [];
+            attendanceMap[dateStr].push(r.coach);
+          }
+        });
+
+      const monthName = `${y}年${m}月`;
+      let text = `*${c}*\n`;
+      if(time) text += `${time}\n\n`;
+      text += `*${monthName}*\n`;
+
+      scheduledDates.forEach(d => {
+        const coaches = attendanceMap[d] || [];
+        text += `${d}\n`;
+        text += coaches.length > 0 ? coaches.join(', ') + '\n' : '-\n';
+      });
+
+      whatsappOutput.value = text.trim();
+
+      const recorded = sheet1Rows
+        .filter(r => r.course === c)
+        .map(r => ({...r, dt: parseDateFlexible(r.date)}))
+        .filter(r => r.dt && r.dt.getFullYear() === y && r.dt.getMonth() + 1 === m)
+        .sort((a,b) => a.dt - b.dt);
+
+      if(recorded.length === 0){
+        viewTable.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-500">本月尚未有點名記錄</td></tr>';
+      } else {
+        viewTable.innerHTML='<thead class="bg-gray-100"><tr><th class="p-2 text-left">日期</th><th class="p-2 text-left">時間</th><th class="p-2 text-left">教練</th></tr></thead><tbody>'+
+          recorded.map(r=>`<tr class="border-t"><td class="p-2">${r.date}</td><td class="p-2">${r.time}</td><td class="p-2">${r.coach}</td></tr>`).join('')+'</tbody>';
+      }
+
+      loadingStatus.textContent=`已載入（預定 ${scheduledDates.length} 堂，實際點名 ${recorded.length} 筆）`;
+    }
+
+    btnCopy.onclick=()=>{
+      whatsappOutput.select();
+      document.execCommand('copy');
+      alert('已複製 WhatsApp 格式');
+    };
+
+  })();
+  </script>
+
+  <!-- Service Worker 註冊（放在最後較佳） -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker 註冊成功'))
+          .catch(err => console.log('Service Worker 註冊失敗:', err));
+      });
+    }
+  </script>
 </body>
 </html>
