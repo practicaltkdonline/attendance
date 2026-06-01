@@ -35,7 +35,6 @@
 
         .main { padding: 22px; }
 
-        /* 目標與差額組合區塊 */
         #amount-group {
             margin-bottom: 24px;
             background: #f8f9fa;
@@ -101,7 +100,7 @@
         .count-input { width: 92px; }
         .cheque-input { width: 140px; }
 
-        .amount {
+        .amount, .cheque-amount {
             font-weight: 700;
             color: var(--primary);
             font-size: 1.25rem;
@@ -109,18 +108,7 @@
             text-align: right;
         }
 
-        /* 支票專用金額（手機版專用隱藏） */
-        .cheque-amount {
-            font-weight: 700;
-            color: var(--primary);
-            font-size: 1.25rem;
-            min-width: 120px;
-            text-align: right;
-        }
-
-        .cheque-item {
-            gap: 12px;
-        }
+        .cheque-item { gap: 12px; }
         .cheque-name {
             font-weight: 600;
             min-width: 100px;
@@ -155,7 +143,6 @@
             transform: translateY(-50%);
             color: #666;
             font-weight: 600;
-            z-index: 1;
         }
         #target {
             width: 100%;
@@ -210,32 +197,66 @@
             width: 90%;
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            position: relative;
+            padding: 24px;
         }
         .modal-header {
-            padding: 20px;
-            font-size: 1.4rem;
-            font-weight: 600;
-            border-bottom: 1px solid #eee;
             text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
         }
         .modal-close {
             position: absolute;
-            right: 20px;
             top: 18px;
+            right: 22px;
             font-size: 2rem;
             cursor: pointer;
             color: #aaa;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
         }
+        .modal-close:hover {
+            color: #ff4757;
+            background: #f8f9fa;
+        }
+
+        /* 修改後的關閉按鈕：置中 + 圓角長方形 */
+        .close-btn {
+            display: block;
+            margin: 25px auto 0;
+            width: 65%;
+            max-width: 280px;
+            padding: 14px 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .close-btn:hover {
+            background: #00a65a;
+            transform: translateY(-2px);
+        }
+
         #modalContent, #confirmContent {
-            padding: 20px;
+            padding: 10px 0;
             line-height: 1.6;
         }
 
-        /* 確認彈窗按鈕 */
         .confirm-actions {
             display: flex;
             gap: 12px;
-            padding: 20px;
+            padding: 20px 0;
         }
         .confirm-btn {
             flex: 1;
@@ -245,23 +266,13 @@
             border: none;
             border-radius: 50px;
             cursor: pointer;
-            transition: all 0.2s;
         }
-        .confirm-cancel { 
-            background: #f1f2f6; 
-            color: #333; 
-        }
-        .confirm-delete { 
-            background: var(--danger); 
-            color: white; 
-        }
+        .confirm-cancel { background: #f1f2f6; color: #333; }
+        .confirm-delete { background: var(--danger); color: white; }
 
-        /* 手機版優化 */
         @media (max-width: 620px) {
-            .amount { display: none; }                    /* 鈔票金額隱藏 */
-            .cheque-amount { display: none; }             /* 支票金額隱藏 */
+            .amount, .cheque-amount { display: none; }
             .cheque-input { width: 120px; }
-            .cheque-name { min-width: 80px; font-size: 1.05rem; }
         }
     </style>
 </head>
@@ -273,7 +284,6 @@
         </div>
 
         <div class="main">
-            <!-- 目標金額 + 差額 組合區塊 -->
             <div class="section" id="amount-group">
                 <div class="section-header" onclick="toggleGroup()">
                     <strong>金額設定</strong>
@@ -308,7 +318,7 @@
 
         <div class="footer">
             <button class="btn btn-clear" onclick="showClearConfirm()">清空全部</button>
-            <button class="btn btn-summary" onclick="showSummaryModal()">📋 查看總結明細</button>
+            <button class="btn btn-summary" onclick="showSummaryModal()">📋 查看細明</button>
         </div>
     </div>
 
@@ -318,6 +328,7 @@
             <span class="modal-close" onclick="closeModal('summaryModal')">×</span>
             <div class="modal-header">數鈔結果</div>
             <div id="modalContent"></div>
+            <!-- 置中圓角長方形關閉按鈕 -->
             <button class="close-btn" onclick="closeModal('summaryModal')">關閉</button>
         </div>
     </div>
@@ -326,9 +337,7 @@
     <div class="modal" id="confirmModal">
         <div class="modal-content">
             <div class="modal-header" id="confirmTitle">確認操作</div>
-            <div id="confirmContent">
-                <!-- 內容由 JS 動態填入 -->
-            </div>
+            <div id="confirmContent"></div>
             <div class="confirm-actions">
                 <button class="confirm-btn confirm-cancel" onclick="closeModal('confirmModal')">取消</button>
                 <button class="confirm-btn confirm-delete" id="confirmActionBtn">確定</button>
@@ -346,7 +355,7 @@
 
         let counts = {};
         let cheques = [];
-        let pendingDeleteIndex = -1;   // 用於記錄要刪除的支票索引
+        let pendingDeleteIndex = -1;
 
         function formatAmount(amount) {
             return amount.toLocaleString('zh-HK', {
@@ -409,7 +418,6 @@
             calculate();
         }
 
-        // 顯示刪除確認彈窗
         function showDeleteConfirm(index) {
             pendingDeleteIndex = index;
             document.getElementById('confirmTitle').textContent = '刪除支票';
@@ -479,8 +487,7 @@
         }
 
         function toggleGroup() {
-            const group = document.getElementById('amount-group');
-            group.classList.toggle('collapsed');
+            document.getElementById('amount-group').classList.toggle('collapsed');
         }
 
         function showClearConfirm() {
