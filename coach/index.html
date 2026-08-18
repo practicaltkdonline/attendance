@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#1a73e8" />
+  <title>教練課堂管理</title>
+  <style>
+    :root {
+      --primary: #1a73e8; --success: #0f9d58; --warning: #f9ab00; --danger: #d93025;
+      --bg: #f0f4f8; --card: #fff; --text: #1f2937; --muted: #6b7280; --border: #e5e7eb; --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.45; min-height: 100vh; padding-bottom: 70px;
+    }
+    .app-header {
+      background: var(--card); border-bottom: 1px solid var(--border); padding: 12px 16px;
+      position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 8px;
+    }
+    .app-header h1 { font-size: 1.05rem; font-weight: 600; flex: 1; }
+    .back-btn { background: none; border: none; font-size: 1.15rem; padding: 4px 8px; cursor: pointer; color: var(--primary); }
+    .badge { font-size: 0.7rem; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 20px; }
+    .view { display: none; padding: 14px 16px; }
+    .view.active { display: block; }
+    .filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .filter-chip {
+      padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+      background: #fff; font-size: 0.8rem; cursor: pointer;
+    }
+    .filter-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .month-nav button {
+      background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+    }
+    .month-label { font-weight: 600; font-size: 1.05rem; }
+    .month-weekdays {
+      display: grid; grid-template-columns: repeat(7, 1fr); text-align: center;
+      font-size: 0.72rem; color: var(--muted); margin-bottom: 4px;
+    }
+    .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .month-cell {
+      background: var(--card); border-radius: 8px; padding: 8px 2px; text-align: center;
+      border: 1px solid transparent; cursor: pointer; min-height: 48px;
+    }
+    .month-cell.other-month { opacity: 0.35; }
+    .month-cell.today { border-color: var(--primary); background: #eff6ff; }
+    .month-day-num { font-size: 0.9rem; font-weight: 500; }
+    .month-cell.has-class { border-color: var(--border); }
+    .month-dots { display: flex; justify-content: center; gap: 2px; margin-top: 3px; min-height: 6px; flex-wrap: wrap; }
+    .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
+    .day-title { font-size: 1.15rem; font-weight: 600; margin-bottom: 4px; }
+    .day-summary { font-size: 0.82rem; color: var(--muted); margin-bottom: 12px; }
+    .dojo-group { margin-bottom: 16px; }
+    .dojo-header {
+      font-size: 0.85rem; font-weight: 600; color: var(--primary);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+    }
+    .dojo-header span {
+      background: #e0f2fe; color: #0369a1; font-size: 0.72rem; padding: 1px 7px; border-radius: 10px;
+    }
+    .class-card {
+      background: var(--card); border-radius: 10px; padding: 11px 12px; margin-bottom: 8px;
+      border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 10px;
+    }
+    .class-card.done { border-left: 4px solid var(--success); }
+    .class-card.pending { border-left: 4px solid var(--warning); }
+    .class-card.makeup { border-left: 4px solid #8b5cf6; }
+    .class-time { font-weight: 600; font-size: 0.9rem; min-width: 72px; }
+    .class-body { flex: 1; min-width: 0; }
+    .class-name { font-size: 0.88rem; font-weight: 500; }
+    .class-meta { font-size: 0.75rem; color: var(--muted); }
+    .status-tag { font-size: 0.7rem; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+    .status-tag.pending { background: #fef3c7; color: #92400e; }
+    .status-tag.done { background: #d1fae5; color: #065f46; }
+    .status-tag.makeup { background: #ede9fe; color: #5b21b6; }
+    .class-info {
+      background: var(--card); border-radius: var(--radius); padding: 14px;
+      margin-bottom: 12px; border: 1px solid var(--border);
+    }
+    .class-info h2 { font-size: 1.05rem; margin-bottom: 4px; }
+    .student-list {
+      background: var(--card); border-radius: var(--radius); border: 1px solid var(--border);
+      overflow: hidden; margin-bottom: 14px;
+    }
+    .student-row {
+      display: flex; align-items: center; gap: 8px; padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .student-row:last-child { border-bottom: none; }
+    .student-name { flex: 1; font-weight: 500; font-size: 0.92rem; }
+    .student-count { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+    .status-btns { display: flex; gap: 3px; }
+    .status-btn {
+      padding: 4px 7px; border-radius: 6px; border: 1px solid var(--border);
+      background: #fff; font-size: 0.72rem; cursor: pointer;
+    }
+    .status-btn.active-present { background: #d1fae5; border-color: var(--success); color: #065f46; font-weight: 600; }
+    .status-btn.active-absent { background: #fee2e2; border-color: var(--danger); color: #991b1b; font-weight: 600; }
+    .status-btn.active-leave { background: #e0e7ff; border-color: #6366f1; color: #3730a3; font-weight: 600; }
+    .quick-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+    .quick-actions button {
+      flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+      background: #fff; font-size: 0.85rem; cursor: pointer;
+    }
+    .log-section, .form-card {
+      background: var(--card); border-radius: var(--radius); padding: 14px;
+      border: 1px solid var(--border); margin-bottom: 14px;
+    }
+    .log-section h3, .form-card h3 { font-size: 0.95rem; margin-bottom: 10px; }
+    label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 3px; font-weight: 500; }
+    textarea, input, select {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 0.9rem; font-family: inherit; margin-bottom: 8px;
+    }
+    textarea { resize: vertical; min-height: 48px; }
+    .btn-primary {
+      width: 100%; padding: 12px; background: var(--primary); color: #fff;
+      border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-primary:disabled { opacity: 0.5; }
+    .btn-secondary {
+      width: 100%; padding: 10px; background: #f3f4f6; color: var(--text);
+      border: none; border-radius: 10px; font-size: 0.95rem; margin-top: 8px; cursor: pointer;
+    }
+    .btn-purple {
+      width: 100%; padding: 12px; background: #7c3aed; color: #fff;
+      border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer;
+    }
+    .toast {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      background: #111827; color: #fff; padding: 10px 20px; border-radius: 20px;
+      font-size: 0.9rem; z-index: 100; display: none;
+    }
+    .toast.show { display: block; animation: fade 2.5s forwards; }
+    @keyframes fade {
+      0% { opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; }
+    }
+    .empty { text-align: center; padding: 32px 16px; color: var(--muted); font-size: 0.95rem; }
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; background: var(--card);
+      border-top: 1px solid var(--border); display: flex; z-index: 30;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .bottom-nav button {
+      flex: 1; padding: 10px 4px; border: none; background: none;
+      font-size: 0.72rem; color: var(--muted); cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+    }
+    .bottom-nav button.active { color: var(--primary); font-weight: 600; }
+    .nav-item { position: relative; }
+    .badge-count {
+      position: absolute; top: 4px; right: 22%; background: var(--danger);
+      color: #fff; font-size: 0.65rem; min-width: 16px; height: 16px;
+      border-radius: 8px; display: none; align-items: center; justify-content: center;
+    }
+    .makeup-card {
+      background: var(--card); border-radius: 10px; padding: 14px; margin-bottom: 10px;
+      border: 1px solid var(--border); border-left: 4px solid #8b5cf6;
+    }
+    .makeup-card h3 { font-size: 1rem; margin-bottom: 4px; }
+    .makeup-meta { font-size: 0.82rem; color: var(--muted); margin-bottom: 10px; }
+    .btn-cancel-soft {
+      width: 100%; padding: 8px; background: #f3f4f6; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; cursor: pointer;
+    }
+    .btn-arrange {
+      width: 100%; padding: 9px; background: #7c3aed; color: #fff;
+      border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer;
+    }
+    .preset-times { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .preset-times button {
+      padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: #fff; font-size: 0.8rem; cursor: pointer;
+    }
+    .preset-times button.active { background: #ede9fe; border-color: #7c3aed; color: #5b21b6; }
+  </style>
+</head>
+<body>
+  <div class="app-header">
+    <button class="back-btn" id="backBtn" style="display:none;">←</button>
+    <h1 id="headerTitle">課堂管理</h1>
+    <span class="badge">v1</span>
+  </div>
+
+  <div id="view-month" class="view active">
+    <div class="filter-bar" id="dojoFilterMonth"></div>
+    <div class="month-nav">
+      <button id="prevMonth">‹</button>
+      <div class="month-label" id="monthLabel">—</div>
+      <button id="nextMonth">›</button>
+    </div>
+    <div class="month-weekdays">
+      <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+    </div>
+    <div class="month-grid" id="monthGrid"></div>
+  </div>
+
+  <div id="view-day" class="view">
+    <div class="filter-bar" id="dojoFilterDay"></div>
+    <div class="day-title" id="dayTitle">—</div>
+    <div class="day-summary" id="daySummary"></div>
+    <div id="classList"></div>
+  </div>
+
+  <div id="view-attend" class="view">
+    <div class="class-info" id="attendClassInfo"></div>
+    <div class="quick-actions">
+      <button id="btnAllPresent">全部出席</button>
+      <button id="btnClearStatus">清除選擇</button>
+    </div>
+    <div class="student-list" id="studentList"></div>
+    <div class="log-section">
+      <h3>課堂 Log</h3>
+      <label>今日進度</label>
+      <textarea id="logProgress"></textarea>
+      <label>優點</label>
+      <textarea id="logGood"></textarea>
+      <label>要改善</label>
+      <textarea id="logImprove"></textarea>
+      <label>下次準備</label>
+      <textarea id="logNext"></textarea>
+      <label>其他備註</label>
+      <textarea id="logNote"></textarea>
+    </div>
+    <button class="btn-primary" id="btnSave">儲存點名 + Log</button>
+    <button class="btn-secondary" id="btnBackDay">返回</button>
+  </div>
+
+  <div id="view-makeup" class="view">
+    <div id="makeupList"></div>
+  </div>
+
+  <div id="view-arrange" class="view">
+    <div class="form-card" id="arrangeInfo"></div>
+    <div class="form-card">
+      <h3>選擇補堂時間</h3>
+      <label>日期</label>
+      <input type="date" id="arrangeDate" />
+      <label>常用時段</label>
+      <div class="preset-times" id="presetTimes"></div>
+      <label>時段代碼（8位，可手動改）</label>
+      <input type="text" id="arrangeTimeCode" placeholder="例如 16151715" maxlength="8" />
+      <label>道場</label>
+      <select id="arrangeDojo">
+        <option>紅磡</option><option>觀塘</option><option>鰂魚涌</option>
+      </select>
+      <label>備註</label>
+      <input type="text" id="arrangeNote" />
+    </div>
+    <button class="btn-purple" id="btnConfirmArrange">確認安排</button>
+    <button class="btn-secondary" id="btnCancelArrange">取消</button>
+  </div>
+
+  <div id="view-setup" class="view">
+    <div class="form-card">
+      <h3>教練名稱</h3>
+      <label>寫入點名／Log 時使用</label>
+      <input type="text" id="inputCoach" placeholder="例如：歐教練" />
+      <button class="btn-primary" id="btnSaveCoach" style="margin-top:8px">儲存</button>
+    </div>
+    <div class="form-card">
+      <h3>API 連線測試</h3>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px">
+        請先在 app.js 設定 API_URL，再按測試
+      </p>
+      <button class="btn-secondary" id="btnTestApi" style="margin:0">測試連線</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="bottom-nav">
+    <button class="nav-item active" data-nav="calendar"><span>📅</span>日曆</button>
+    <button class="nav-item" data-nav="makeup" id="navMakeup">
+      <span>🔄</span>待補堂
+      <span class="badge-count" id="makeupBadge">0</span>
+    </button>
+    <button class="nav-item" data-nav="setup"><span>⚙️</span>設定</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
